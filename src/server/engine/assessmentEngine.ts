@@ -30,6 +30,8 @@ export interface SubmittedEvidence {
   confidenceScore: number; // 0.0 - 1.0
   extractedData: {
     fullName?: string;
+    studentName?: string;
+    filingStatus?: string;
     dateOfBirth?: string;
     state?: string;
     institutionName?: string;

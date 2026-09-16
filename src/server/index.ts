@@ -139,6 +139,12 @@ if (fs.existsSync(distPath)) {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`ClearGov Server listening on http://localhost:${PORT}`);
-});
+// Only listen directly if not running in serverless environment
+if (process.env.VERCEL !== '1' && process.env.AWS_LAMBDA_FUNCTION_NAME === undefined) {
+  app.listen(PORT, () => {
+    console.log(`ClearGov Server listening on http://localhost:${PORT}`);
+  });
+}
+
+export default app;
+

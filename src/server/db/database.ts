@@ -2,8 +2,9 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
 
-// Store DB in local project directory or data dir
-const DB_PATH = path.resolve(process.cwd(), 'cleargov.db');
+// Store DB in /tmp for serverless/Vercel environments, or local project root for development
+const isVercel = process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME !== undefined;
+const DB_PATH = isVercel ? '/tmp/cleargov.db' : path.resolve(process.cwd(), 'cleargov.db');
 
 export interface StoredApplication {
   id: string; // e.g. CG-2026-001
