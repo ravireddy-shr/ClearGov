@@ -133,6 +133,7 @@ export interface ExplanationNotice {
   decisionSummary: string;
   fullNoticeText: string;
   generationMethod: 'deterministic_engine' | 'llm_synthesized';
+  fallbackReason?: string;
 }
 
 export interface ActionStep {

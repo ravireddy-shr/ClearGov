@@ -8,6 +8,7 @@ export interface ExplanationNotice {
   decisionSummary: string;
   fullNoticeText: string;
   generationMethod: 'deterministic_engine' | 'llm_synthesized';
+  fallbackReason?: string;
 }
 
 export class ExplanationEngine {
@@ -24,14 +25,29 @@ export class ExplanationEngine {
     const deterministic = this.generateDeterministic(assessment, applicant);
 
     // 2. If LLM requested and API key available, attempt synthesis
-    if (options.preferLlm && (options.apiKey || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY)) {
+    if (options.preferLlm) {
+      const hasKey = !!(options.apiKey || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY);
+      if (!hasKey) {
+        return {
+          ...deterministic,
+          fallbackReason: 'No API key provided. AI synthesis unavailable, showing rules-based explanation.'
+        };
+      }
       try {
         const llmResult = await this.generateWithLlm(assessment, applicant, deterministic, options.apiKey);
         if (llmResult) {
           return llmResult;
         }
-      } catch (err) {
+        return {
+          ...deterministic,
+          fallbackReason: 'AI synthesis unavailable, showing rules-based explanation.'
+        };
+      } catch (err: any) {
         console.warn('LLM synthesis failed, falling back to deterministic explanation engine:', err);
+        return {
+          ...deterministic,
+          fallbackReason: `AI synthesis unavailable (${err.message || 'error'}), showing rules-based explanation.`
+        };
       }
     }
 
@@ -190,7 +206,7 @@ Respond with a JSON object strictly matching this schema:
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1500,
         messages: [{ role: 'user', content: prompt }]
       })

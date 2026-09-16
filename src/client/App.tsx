@@ -57,6 +57,7 @@ export function App() {
 
   const [isAssessing, setIsAssessing] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isGeneratingLlm, setIsGeneratingLlm] = useState<boolean>(false);
   const [savedApplicationId, setSavedApplicationId] = useState<string | undefined>(undefined);
 
   // 1. Initial Load: Fetch Scenario, Presets, and Applications from Backend
@@ -111,15 +112,25 @@ export function App() {
   };
 
   // 2. Live Assessment Pipeline
-  const runLiveAssessment = useCallback(async (appData: ApplicantData, evList: SubmittedEvidence[]) => {
-    setIsAssessing(true);
+  const runLiveAssessment = useCallback(async (
+    appData: ApplicantData,
+    evList: SubmittedEvidence[],
+    options: { preferLlm?: boolean; apiKey?: string } = {}
+  ) => {
+    if (options.preferLlm) {
+      setIsGeneratingLlm(true);
+    } else {
+      setIsAssessing(true);
+    }
     try {
       const res = await fetch('/api/assess', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           applicant: appData,
-          evidence: evList
+          evidence: evList,
+          preferLlm: options.preferLlm,
+          apiKey: options.apiKey
         })
       });
       if (res.ok) {
@@ -132,8 +143,13 @@ export function App() {
       console.error('Live assessment error:', err);
     } finally {
       setIsAssessing(false);
+      setIsGeneratingLlm(false);
     }
   }, []);
+
+  const handleRecomputeWithLlm = useCallback(async (preferLlm: boolean, apiKey?: string) => {
+    await runLiveAssessment(applicant, evidenceList, { preferLlm, apiKey });
+  }, [applicant, evidenceList, runLiveAssessment]);
 
   // 3. Trigger live re-assessment whenever applicant or evidence changes
   const handleApplicantChange = (updated: ApplicantData) => {
@@ -323,6 +339,8 @@ export function App() {
                   isExpanded={expandAll || currentStage === 4 || currentStage === 5}
                   onToggleExpand={() => setCurrentStage(4)}
                   onNextStep={() => setCurrentStage(6)}
+                  onRecomputeWithLlm={handleRecomputeWithLlm}
+                  isGeneratingLlm={isGeneratingLlm}
                 />
               </div>
             )}

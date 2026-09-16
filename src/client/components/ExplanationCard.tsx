@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ExplanationNotice, OverallDecision } from '../types/index.js';
-import { Check, Edit2, ArrowRight, Shield, ChevronDown, ChevronUp, FileText } from 'lucide-react';
+import { Check, Edit2, ArrowRight, Shield, ChevronDown, ChevronUp, FileText, Sparkles, Key, AlertTriangle, Loader2 } from 'lucide-react';
 
 interface ExplanationCardProps {
   explanation: ExplanationNotice;
@@ -11,6 +11,8 @@ interface ExplanationCardProps {
   isExpanded: boolean;
   onToggleExpand: () => void;
   onNextStep: () => void;
+  onRecomputeWithLlm?: (preferLlm: boolean, apiKey?: string) => Promise<void>;
+  isGeneratingLlm?: boolean;
 }
 
 export const ExplanationCard: React.FC<ExplanationCardProps> = ({
@@ -21,9 +23,13 @@ export const ExplanationCard: React.FC<ExplanationCardProps> = ({
   onNavigateToReviewer,
   isExpanded,
   onToggleExpand,
-  onNextStep
+  onNextStep,
+  onRecomputeWithLlm,
+  isGeneratingLlm
 }) => {
   const [showFullText, setShowFullText] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [showKeyInput, setShowKeyInput] = useState(false);
 
   // Dignified outcome header styling (Instruction 3 & 5)
   const getOutcomeDetails = () => {
@@ -64,6 +70,7 @@ export const ExplanationCard: React.FC<ExplanationCardProps> = ({
   };
 
   const outcome = getOutcomeDetails();
+  const isLlm = explanation.generationMethod === 'llm_synthesized';
 
   // Collapsed View for finished step
   if (!isExpanded) {
@@ -79,6 +86,11 @@ export const ExplanationCard: React.FC<ExplanationCardProps> = ({
               <h3 className="text-sm font-bold text-dark-950">
                 Official Determination Notice: {outcome.badgeText}
               </h3>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                isLlm ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-700'
+              }`}>
+                {isLlm ? 'AI Synthesized' : 'Rules-Based Engine'}
+              </span>
             </div>
             <p className="text-xs text-dark-500 mt-0.5">
               {explanation.decisionSummary}
@@ -111,7 +123,26 @@ export const ExplanationCard: React.FC<ExplanationCardProps> = ({
             <span className="text-xs text-dark-500">Official Determination Notice</span>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Visibly show which generation method produced the result */}
+            <div className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
+              isLlm 
+                ? 'bg-purple-100/80 text-purple-900 border-purple-300' 
+                : 'bg-slate-100 text-slate-800 border-slate-200'
+            }`}>
+              {isLlm ? (
+                <>
+                  <Sparkles className="w-3 h-3 text-purple-600" />
+                  <span>Generated with AI (Claude Sonnet 4.6)</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                  <span>Deterministic Rules Engine</span>
+                </>
+              )}
+            </div>
+
             <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${outcome.badgeStyle}`}>
               <span className={`w-2 h-2 rounded-full ${outcome.dot}`} />
               <span>{outcome.badgeText}</span>
@@ -126,6 +157,96 @@ export const ExplanationCard: React.FC<ExplanationCardProps> = ({
         <p className="text-sm text-dark-600 leading-relaxed max-w-3xl">
           {outcome.desc}
         </p>
+
+        {/* AI Synthesis Opt-In Toggle Banner */}
+        {onRecomputeWithLlm && (
+          <div className="mt-5 p-4 rounded-2xl bg-white border border-dark-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                <span className="text-xs font-bold text-dark-950">
+                  AI Explanation Synthesis (Optional Opt-In)
+                </span>
+                <span className="text-[10px] bg-dark-100 text-dark-700 px-2 py-0.5 rounded-md font-semibold">
+                  Default: Deterministic
+                </span>
+              </div>
+              <p className="text-xs text-dark-600 leading-relaxed">
+                ClearGov uses deterministic rules by default. Click to synthesize this explanation with an LLM using auditable, structured reasoning.
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowKeyInput(!showKeyInput)}
+                className="px-3 py-2 text-xs font-semibold text-dark-700 hover:text-dark-950 hover:bg-slate-100 rounded-xl border border-dark-200 transition flex items-center space-x-1.5"
+                title="Enter custom Anthropic API key"
+              >
+                <Key className="w-3.5 h-3.5 text-dark-500" />
+                <span>{showKeyInput ? 'Hide Key' : 'API Key'}</span>
+              </button>
+
+              {isLlm ? (
+                <button
+                  type="button"
+                  disabled={isGeneratingLlm}
+                  onClick={() => onRecomputeWithLlm(false)}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center space-x-2 disabled:opacity-50"
+                >
+                  <span>Reset to Rules-Based</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={isGeneratingLlm}
+                  onClick={() => onRecomputeWithLlm(true, apiKeyInput.trim() || undefined)}
+                  className="px-4 py-2 bg-lime-accent hover:bg-lime-accentHover text-dark-950 rounded-xl text-xs font-bold transition flex items-center space-x-2 shadow-sm disabled:opacity-50"
+                >
+                  {isGeneratingLlm ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Synthesizing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 text-dark-950" />
+                      <span>Generate with AI</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Optional Custom API Key Field */}
+        {showKeyInput && (
+          <div className="mt-3 p-3.5 rounded-xl bg-surface-100 border border-dark-200 flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <label className="text-xs font-bold text-dark-800 whitespace-nowrap">
+              Anthropic API Key:
+            </label>
+            <input
+              type="password"
+              placeholder="sk-ant-api03-... (leave empty if ANTHROPIC_API_KEY is set in environment)"
+              value={apiKeyInput}
+              onChange={(e) => setApiKeyInput(e.target.value)}
+              className="flex-1 h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-dark-950 placeholder:text-slate-400 focus:outline-none focus:border-dark-900 w-full"
+            />
+          </div>
+        )}
+
+        {/* Visible Fallback Alert when LLM fails or is unavailable */}
+        {explanation.fallbackReason && (
+          <div className="mt-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start space-x-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold">Notice: </span>
+              <span>{explanation.fallbackReason}</span>
+            </div>
+          </div>
+        )}
+
 
         {/* Link to Reviewer Portal if flagged */}
         {overallDecision === 'needs_human_review' && onNavigateToReviewer && (
